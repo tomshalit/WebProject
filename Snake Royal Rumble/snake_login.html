@@ -185,9 +185,7 @@
                 document.getElementById("players_list").options.add(opt);
             }
             
-            //var gameNumber = 1;
             var gameNum = firebase.database().ref('gameNum');
-            //gameNum.set(gameNumber);
 
             StartGameRef.on('value', function (snapshot) {
                 console.log(snapshot.val());
@@ -211,8 +209,7 @@
                         player.remove();
                     setTimeout(function () {
                         location.href = "snake_royal_rumble.html";
-                    }, 2000);
-                    //location.href = "snake_royal_rumble.html";
+                    }, 1000);
                     StartGameRef.set(null);
                 }
             });
