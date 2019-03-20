@@ -105,7 +105,12 @@
                 return this._queue.pop();
             }
 
-
+            is_collided(nx, ny) {
+                return 0 > nx || nx > grid.width - 1  ||
+                       0 > ny || ny > grid.height - 1 ||
+                       grid.get(nx, ny) === SNAKE     ||
+                       grid.get(nx, ny) === SNAKE2;
+            }
         }
 
         function setFood() {
@@ -147,8 +152,14 @@
         var mapRef;
         var endRef;
         var gameRunning = false;
+        var gameFinished = false;
+        var playerWinList = firebase.database().ref('playersWins');
         var gameNum = firebase.database().ref('gameNum');
-        console.log(gameNum.key);
+
+        playerWinList.on('value', function (snapshot) {
+            if (snapshot.val()) console.log(snapshot.val());
+        });
+
         gameNum.on('value', function (snapshot) {
             console.log(snapshot.val());
             if (snapshot.val()) {
@@ -159,11 +170,13 @@
                         movement: event.keyCode
                     });
                 });
+
                 document.addEventListener("keyup", function (event) {
                     snakeRef.set(null);
                 });
 
                 var loop = function () {
+                    if (gameFinished) return;
                     update();
                     window.requestAnimationFrame(loop, canvas);
                 }
@@ -191,18 +204,52 @@
                             case DOWN:  ny2++; break;
                         }
 
-                        if (0 > nx  || nx > grid.width - 1   ||
-                            0 > ny  || ny > grid.height - 1  ||
-                            0 > nx2 || nx2 > grid.width - 1  ||
-                            0 > ny2 || ny2 > grid.height - 1 ||
-                            grid.get(nx, ny) === SNAKE ||
-                            grid.get(nx, ny) === SNAKE2 ||
-                            grid.get(nx2, ny2) === SNAKE ||
-                            grid.get(nx2, ny2) === SNAKE2) {
-                            if (dbGameObj && dbGameObj.player1 == identifier) {
-                                endRef.set(true);
-                            }
+                        if (((snake.is_collided(nx, ny) && snake2.is_collided(nx2, ny2)) || (nx === nx2 && ny === ny2)) &&
+                              dbGameObj && dbGameObj.player1 == identifier) {
+                            endRef.set('Game OVER, it is a tie');
+                            return;
                         }
+                        if (snake.is_collided(nx, ny) && dbGameObj && dbGameObj.player1 == identifier) {
+                            playerWinList.transaction(function (playersList) {
+                                console.log(playersList);
+                                for (var i = 0; i < playersList.length; i++) {
+                                    if (playersList[i].identifier === dbGameObj.player2 && !gameFinished) {
+                                        console.log(playersList[i].email);
+                                        gameFinished = true;
+                                        playersList[i].wins = playersList[i].wins + 1;
+                                        while (i !== 0 && playersList[i].wins > playersList[i - 1].wins) {
+                                            var temp = playersList[i - 1];
+                                            playersList[i - 1] = playersList[i];
+                                            playersList[i] = temp;
+                                        }
+                                        return playersList;
+                                    }
+                                }
+                            });
+                            endRef.set('Game OVER, blue player lost');
+                            return;
+                        }
+                        if (snake2.is_collided(nx2, ny2) && dbGameObj && dbGameObj.player1 == identifier) {
+                            playerWinList.transaction(function (playersList) {
+                                console.log(playersList);
+                                for (var i = 0; i < playersList.length; i++) {
+                                    if (playersList[i].identifier === dbGameObj.player1 && !gameFinished) {
+                                        console.log(playersList[i].email);
+                                        gameFinished = true;
+                                        playersList[i].wins = playersList[i].wins + 1;
+                                        while (i !== 0 && playersList[i].wins > playersList[i - 1].wins) {
+                                            var temp = playersList[i - 1];
+                                            playersList[i - 1] = playersList[i];
+                                            playersList[i] = temp;
+                                        }
+                                        return playersList;
+                                    }
+                                }
+                            });
+                            endRef.set('Game OVER, green player lost');
+                            return;
+                        }
+
                         var snake_next_move;
                         if (grid.get(nx, ny) === FRUIT) {
                             snake_next_move = { x: nx, y: ny };
@@ -273,6 +320,7 @@
                 gameRef.set(null);
                 endRef.set(null);
                 console.log(gameRef);
+
                 gameRef.on('value', function (snapshot) {
                     if (snapshot.val() == null) {
                         gameRef.set({
@@ -307,7 +355,6 @@
 
                 snakeRef.on('value', function (snapshot) {
                     var dbs = snapshot.val();
-                    console.log(dbs);
 
                     if (dbs !== null && dbs.player === dbGameObj.player1) {
                         if (dbs.movement === KEY_LEFT && snake.direction !== RIGHT) snake.direction = LEFT;
@@ -336,10 +383,9 @@
                     if (snapshot.val()) {
                         ctx.fillStyle = "#000";
                         ctx.font = "30px Helvetica";
-                        ctx.fillText("GAME OVER", (canvas.width / 2 - 30), canvas.height / 2);
-                        gameRef.remove();
+                        ctx.fillText(snapshot.val(), canvas.width / 8, canvas.height / 2);
                         return setTimeout(function () {
-                            //gameRef.remove();
+                            gameRef.remove();
                             window.location.href = "snake_login.html";
                         }, 3000);
                     }

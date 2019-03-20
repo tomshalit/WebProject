@@ -20,7 +20,7 @@
     <div class="limiter">
         <div class="container-login100">
             <div class="wrap-login100 p-t-85 p-b-20">
-                <form class="login100-form validate-form">
+                <form class="login100-form validate-form" id="form">
                     <span class="login100-form-title p-b-70" style="padding-bottom: 5px;">
                         Welcome To Snake Royal Rumble
                     </span>
@@ -41,17 +41,20 @@
                         </button>
                         <p style="margin-top: 20px; color: #727272;" id="loginMessage"></p>
                     </div>
-
-                    <img  id="snakePic" src="images\snake.jpg"/>
+                    <a class="txt1" id="player_name" style="margin-left:100px"></a>
+                    <img id="snakePic" src="images\snake.jpg" />
                     <div>
-                        <a id="player_name"></a>
                         <input type="button" name="" value="Sign out" id="signOut"
-                               style="margin-top: 5px; font-size: 20px;">
+                               style=" font-size: 20px;">
                         <input type="button" name="" value="Start Game" id="startGame"
-                               style="margin-left: 100px;  font-size: 20px;">
-                        <select id="players_list" style="margin-top: 10px"></select>
+                               style="margin-left: 80px;  font-size: 20px;">
+                        <input type="button" name="" value="Show Rank Table" id="tableButton"
+                               style="margin-top:20px;  font-size: 20px;">
+                        <select id="players_list" style="margin-top: 10px; margin-left:50px"></select>
+
+
                     </div>
-                    
+
                     <ul class="login-more p-t-190" style="padding-top: 100px;" id="input3">
                         <li class="m-b-8" id="forgot">
                             <span class="txt1">
@@ -76,6 +79,13 @@
                             </a>
                         </li>
                     </ul>
+
+                    <table id="players_rank">
+                        <thead>
+                        </thead>
+                        <tbody id="table">
+                        </tbody>
+                    </table>
                 </form>
             </div>
         </div>
@@ -106,13 +116,40 @@
 
     <script>
         $(document).ready(function () {
-
+            
 
             var state = "login";
             $("#signOut").hide();
             $('#startGame').hide();
             $('#players_list').hide();
-            
+            $("#tableButton").hide();
+            $('#players_rank').hide();
+
+            function makeTable(container, data) {
+                var table = $("#players_rank").addClass('CSSTableGenerator');
+                console.log("making table\n", data);
+                $.each(data, function (rowIndex, r) {
+                    var row = $("<tr/>");
+                    $.each(r, function (colIndex, c) { 
+                    row.append($("<t" + (rowIndex == 0 ? "h" : "d") + "/>").text(c));
+                    });
+                    table.append(row);
+                });
+                return container.append(table);
+            }
+
+            function removeTable() {
+                $("#form tbody").empty();
+            }
+
+            function appendTableColumn(table, rowData) {
+                var lastRow = $('<tr/>').appendTo(table.find('tbody:last'));
+                $.each(rowData, function (colIndex, c) { 
+                    lastRow.append($('<td/>').text(c));
+                });
+                return lastRow;
+            }
+
             $("#forgot").click(function () {
                 $("#shame").fadeIn(500).delay(3000).fadeOut(1000);
             });
@@ -135,10 +172,23 @@
                 $("#signOut").hide();
                 $('#players_list').hide();
                 $('#startGame').hide();
+                $("#tableButton").hide();
+                $('#players_rank').hide();
+                $('#player_name').text('');
                 $('#input').show();
                 $('#input2').show();
                 $('#input3').show();
                 $('#login').show();
+            });
+
+            $("#tableButton").click(function () {
+                if ($(this).val() === "Show Rank Table") {
+                    $(this).val("Hide Rank Table");
+                    $('#players_rank').show();
+                } else {
+                    $(this).val("Show Rank Table");
+                    $('#players_rank').hide();
+                }
             });
 
             $("form").submit(function (e) {
@@ -167,15 +217,18 @@
                 opponent = $('#players_list').children('option:selected').val();
                 console.log(opponent);
                 if (opponent === myEmail) { alert("you can't choose yourself"); return; }
-                StartGameRef.set({
+
+                AskPlayerRef.set({
+                    status: true,
                     me: myEmail,
                     opponent: opponent
-                });
-
+                })
             });
 
             var StartGameRef = firebase.database().ref('createGame');
+            var AskPlayerRef = firebase.database().ref('askPlayer');
             var PlayersRef = firebase.database().ref('players');
+            var PlayersWinsRef = firebase.database().ref('playersWins');
 
             for (var i = 0; i < PlayersRef.length; i++) {
                 var opt = document.createElement("option");
@@ -187,15 +240,48 @@
             
             var gameNum = firebase.database().ref('gameNum');
 
+            AskPlayerRef.on('value', function (snapshot) {
+                if (snapshot.val()) {
+                    if (snapshot.val().me == myEmail) {
+                        if (snapshot.val().status) {
+                            alert('waiting for answer');
+                        }
+                        else {
+                            alert(snapshot.val().opponent + ' declined');
+                            AskPlayerRef.set(null);
+                        }
+                    }
+                    if (snapshot.val().opponent == myEmail) {
+                        if (snapshot.val().status) {
+                            var r = window.confirm(snapshot.val().me + " wants to play againts you");
+                            if (r == true) {
+                                StartGameRef.set({
+                                    me: snapshot.val().me,
+                                    opponent: snapshot.val().opponent
+                                });
+                            } else {
+                                AskPlayerRef.set({
+                                    status: false,
+                                    me: snapshot.val().me,
+                                    opponent: snapshot.val().opponent
+                                });
+                            }
+                        }
+                        else {
+                            alert('you declined to play');
+                            AskPlayerRef.set(null);
+                        }
+                    }
+                }
+            });
+
             StartGameRef.on('value', function (snapshot) {
                 console.log(snapshot.val());
                 console.log(myEmail);
                 if (snapshot.val() && (snapshot.val().me == myEmail || snapshot.val().opponent == myEmail)) {
                     console.log(snapshot.val());
                     if (snapshot.val().me == myEmail) {
-                        console.log('here');
                         gameNum.transaction(function (currentNum) {
-                            console.log("here")
                             console.log(currentNum);
                             if (currentNum > 10) {
                                 return 1;
@@ -211,6 +297,7 @@
                         location.href = "snake_royal_rumble.html";
                     }, 1000);
                     StartGameRef.set(null);
+                    AskPlayerRef.set(null);
                 }
             });
 
@@ -226,23 +313,33 @@
                 var opt = document.createElement("option");
                 opt.text = snapshot.val().email;
                 opt.value = snapshot.val().email;
-                console.log(opt);
                 document.getElementById("players_list").options.add(opt);
             });
 
             PlayersRef.on('child_removed', function (snapshot) {
                 console.log(snapshot.val());
-                console.log("here")
                 var howMany = document.getElementById("players_list").options.length;
                 for (var i = 0; i < howMany; i++) {
-                    console.log(document.getElementById("players_list").options[i].value);
                     if (document.getElementById("players_list").options[i].value === snapshot.val().email) {
-                        console.log('to remove')
                         document.getElementById("players_list").options.remove(i);
                     }
                     howMany = document.getElementById("players_list").options.length;
                 }
                 
+            });
+
+            PlayersWinsRef.on('value', function (snapshot) {
+                if (snapshot.val()) {
+                    removeTable($("#form"));
+                    var data = [["Pos", "Player", "Wins"]]; //headers
+                    for (var i = 0; i < snapshot.val().length; i++) {
+                        data.push([i + 1, snapshot.val()[i].email, snapshot.val()[i].wins]);
+                    }
+                    makeTable($("#form"), data);
+                }
+                else {
+                    console.log("no players");
+                }
             });
 
             var player;
@@ -257,6 +354,29 @@
                     var isAnonymous = user.isAnonymous;
                     var uid = user.uid;
                     var providerData = user.providerData;
+                    var identifier = localStorage['identifier'] || new Date().getTime().toString();
+                    localStorage['identifier'] = identifier;
+                    console.log(identifier);
+                    PlayersWinsRef.transaction(function (playersList) {
+                        if (playersList) {
+                            for (var i = 0; i < playersList.length; i++) {
+                                if (playersList[i].email === user.email) {
+                                    console.log("player already exist");
+                                    playersList[i].identifier = identifier;
+                                    return playersList;
+                                }
+                            }
+                            console.log("new player, adding to list");
+                            playersList.push({ email: user.email, wins: 0, identifier: identifier });
+                            return playersList;
+                        }
+                        else {
+                            console.log("first player, creating new list");
+                            playersList = [];
+                            playersList.push({ email: user.email, wins: 0, identifier: identifier });
+                            return playersList;
+                        }
+                    });
                     $('#input').hide();
                     $('#input2').hide();
                     $('#input3').hide();
@@ -264,16 +384,11 @@
                     $('#signOut').show();
                     $('#startGame').show();
                     $('#players_list').show();
+                    $("#tableButton").show(); 
+                    $('#player_name').text('Hello ' + user.email);
+                    $('#players_list').append($('<tr></tr>').append($('<td></td>').text(user.email)));
                     localStorage['user'] = user;
-                    console.log(PlayersRef.length);
-                    for (var i = 0; i < PlayersRef.length; i++) {
-                        console.log(PlayersRef[i].val().email);
-                        console.log(user.email)
-                        if (PlayersRef[i].val().email === user.email) {
-                            console('good');
-                            return;
-                        }
-                    }
+                    console.log(PlayersRef);
                     player = PlayersRef.push();
                     console.log(user);
                     console.log(player);
@@ -292,7 +407,6 @@
                     console.log(player);   
                 }
             });
-
         });
     </script>
 
