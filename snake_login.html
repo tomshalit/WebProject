@@ -1,0 +1,414 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Snake Royal Rumble</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--===============================================================================================-->	
+	<link rel="icon" type="image/png" href="images/icons/favicon.ico"/>
+<!--===============================================================================================-->
+	<link rel="stylesheet" type="text/css" href="fonts/font-awesome-4.7.0/css/font-awesome.min.css">
+<!--===============================================================================================-->
+	<link rel="stylesheet" type="text/css" href="fonts/iconic/css/material-design-iconic-font.min.css">
+<!--===============================================================================================-->
+	<link rel="stylesheet" type="text/css" href="css/util.css">
+	<link rel="stylesheet" type="text/css" href="css/main.css">
+<!--===============================================================================================-->
+</head>
+<body>
+
+    <div class="limiter">
+        <div class="container-login100">
+            <div class="wrap-login100 p-t-85 p-b-20">
+                <form class="login100-form validate-form" id="form">
+                    <span class="login100-form-title p-b-70" style="padding-bottom: 5px;">
+                        Welcome To Snake Royal Rumble
+                    </span>
+
+                    <div class="wrap-input100 validate-input m-t-85 m-b-35" data-validate="Enter username" id="input">
+                        <input class="input100" type="text" name="email" id="email">
+                        <span class="focus-input100" data-placeholder="Email"></span>
+                    </div>
+
+                    <div class="wrap-input100 validate-input m-b-50" data-validate="Enter password" id="input2">
+                        <input class="input100" type="password" name="pass" id="pass">
+                        <span class="focus-input100" data-placeholder="Password"></span>
+                    </div>
+
+                    <div class="container-login100-form-btn">
+                        <button class="login100-form-btn" id="login" type="submit">
+                            Login
+                        </button>
+                        <p style="margin-top: 20px; color: #727272;" id="loginMessage"></p>
+                    </div>
+                    <a class="txt1" id="player_name" style="margin-left:100px"></a>
+                    <img id="snakePic" src="images\snake.jpg" />
+                    <div>
+                        <input type="button" name="" value="Sign out" id="signOut"
+                               style=" font-size: 20px;">
+                        <input type="button" name="" value="Start Game" id="startGame"
+                               style="margin-left: 80px;  font-size: 20px;">
+                        <input type="button" name="" value="Show Rank Table" id="tableButton"
+                               style="margin-top:20px;  font-size: 20px;">
+                        <select id="players_list" style="margin-top: 10px; margin-left:50px"></select>
+
+
+                    </div>
+
+                    <ul class="login-more p-t-190" style="padding-top: 100px;" id="input3">
+                        <li class="m-b-8" id="forgot">
+                            <span class="txt1">
+                                Forgot
+                            </span>
+
+                            <a href="#" class="txt2">
+                                Username / Password?
+                            </a>
+                            <span class="txt1" style="display:none" id="shame">
+                                &nbsp;&nbsp;That's a shame..
+                            </span>
+                        </li>
+
+                        <li id="sign">
+                            <span class="txt1">
+                                You Can Also:
+                            </span>
+
+                            <a href="#" class="txt2" id="signup">
+                                Sign up
+                            </a>
+                        </li>
+                    </ul>
+
+                    <table id="players_rank">
+                        <thead>
+                        </thead>
+                        <tbody id="table">
+                        </tbody>
+                    </table>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="dropDownSelect1"></div>
+
+    <!--===============================================================================================-->
+    <script src="vendor/jquery/jquery-3.2.1.min.js"></script>
+    <!--===============================================================================================-->
+    <script src="js/main.js"></script>
+
+
+    <script src="https://www.gstatic.com/firebasejs/5.8.3/firebase.js"></script>
+    <script>
+        // Initialize Firebase
+        var config = {
+            apiKey: "AIzaSyCjrWPFmgPteiXQ4hcGy2VgJYVnJLbeu20",
+            authDomain: "snake-royal-runble.firebaseapp.com",
+            databaseURL: "https://snake-royal-runble.firebaseio.com",
+            projectId: "snake-royal-runble",
+            storageBucket: "snake-royal-runble.appspot.com",
+            messagingSenderId: "430018821824"
+        };
+        firebase.initializeApp(config);
+    </script>
+
+    <script>
+        $(document).ready(function () {
+            
+
+            var state = "login";
+            $("#signOut").hide();
+            $('#startGame').hide();
+            $('#players_list').hide();
+            $("#tableButton").hide();
+            $('#players_rank').hide();
+
+            function makeTable(container, data) {
+                var table = $("#players_rank").addClass('CSSTableGenerator');
+                console.log("making table\n", data);
+                $.each(data, function (rowIndex, r) {
+                    var row = $("<tr/>");
+                    $.each(r, function (colIndex, c) { 
+                    row.append($("<t" + (rowIndex == 0 ? "h" : "d") + "/>").text(c));
+                    });
+                    table.append(row);
+                });
+                return container.append(table);
+            }
+
+            function removeTable() {
+                $("#form tbody").empty();
+            }
+
+            function appendTableColumn(table, rowData) {
+                var lastRow = $('<tr/>').appendTo(table.find('tbody:last'));
+                $.each(rowData, function (colIndex, c) { 
+                    lastRow.append($('<td/>').text(c));
+                });
+                return lastRow;
+            }
+
+            $("#forgot").click(function () {
+                $("#shame").fadeIn(500).delay(3000).fadeOut(1000);
+            });
+
+            $("#signup").click(function () {
+                $(this).text(state);
+                if (state === "login") {
+                    state = "signup";
+                } else {
+                    state = "login";
+                }
+                $("#login").text(state);
+            });
+
+            $("#signOut").click(function signout() {
+
+                firebase.auth().signOut();
+                localStorage.clear();
+                
+                $("#signOut").hide();
+                $('#players_list').hide();
+                $('#startGame').hide();
+                $("#tableButton").hide();
+                $('#players_rank').hide();
+                $('#player_name').text('');
+                $('#input').show();
+                $('#input2').show();
+                $('#input3').show();
+                $('#login').show();
+            });
+
+            $("#tableButton").click(function () {
+                if ($(this).val() === "Show Rank Table") {
+                    $(this).val("Hide Rank Table");
+                    $('#players_rank').show();
+                } else {
+                    $(this).val("Show Rank Table");
+                    $('#players_rank').hide();
+                }
+            });
+
+            $("form").submit(function (e) {
+                e.preventDefault(); // so it wouldn't use form functionality
+                let email = $("#email").val();
+                let pass = $("#pass").val();
+                console.log(email, pass);
+                if (state === "login") {
+                    firebase.auth().signInWithEmailAndPassword(email, pass).catch(function (error) {
+                        // Handle Errors here.
+                        var errorCode = error.code;
+                        var errorMessage = error.message;
+                        $("#loginMessage").text(errorMessage);
+                    });
+                } else {
+                    firebase.auth().createUserWithEmailAndPassword(email, pass).catch(function (error) {
+                        // Handle Errors here.
+                        var errorCode = error.code;
+                        var errorMessage = error.message;
+                        $("#loginMessage").text(errorMessage);
+                    });
+                }
+            });
+
+            $('#startGame').click(function () {
+                opponent = $('#players_list').children('option:selected').val();
+                console.log(opponent);
+                if (opponent === myEmail) { alert("you can't choose yourself"); return; }
+
+                AskPlayerRef.set({
+                    status: true,
+                    me: myEmail,
+                    opponent: opponent
+                })
+            });
+
+            var StartGameRef = firebase.database().ref('createGame');
+            var AskPlayerRef = firebase.database().ref('askPlayer');
+            var PlayersRef = firebase.database().ref('players');
+            var PlayersWinsRef = firebase.database().ref('playersWins');
+
+            for (var i = 0; i < PlayersRef.length; i++) {
+                var opt = document.createElement("option");
+                opt.text = PlayersRef[i].val().email;
+                opt.value = PlayersRef[i].val().email;
+                console.log(opt);
+                document.getElementById("players_list").options.add(opt);
+            }
+            
+            var gameNum = firebase.database().ref('gameNum');
+
+            AskPlayerRef.on('value', function (snapshot) {
+                if (snapshot.val()) {
+                    if (snapshot.val().me == myEmail) {
+                        if (snapshot.val().status) {
+                            alert('waiting for answer');
+                        }
+                        else {
+                            alert(snapshot.val().opponent + ' declined');
+                            AskPlayerRef.set(null);
+                        }
+                    }
+                    if (snapshot.val().opponent == myEmail) {
+                        if (snapshot.val().status) {
+                            var r = window.confirm(snapshot.val().me + " wants to play againts you");
+                            if (r == true) {
+                                StartGameRef.set({
+                                    me: snapshot.val().me,
+                                    opponent: snapshot.val().opponent
+                                });
+                            } else {
+                                AskPlayerRef.set({
+                                    status: false,
+                                    me: snapshot.val().me,
+                                    opponent: snapshot.val().opponent
+                                });
+                            }
+                        }
+                        else {
+                            alert('you declined to play');
+                            AskPlayerRef.set(null);
+                        }
+                    }
+                }
+            });
+
+            StartGameRef.on('value', function (snapshot) {
+                console.log(snapshot.val());
+                console.log(myEmail);
+                if (snapshot.val() && (snapshot.val().me == myEmail || snapshot.val().opponent == myEmail)) {
+                    console.log(snapshot.val());
+                    if (snapshot.val().me == myEmail) {
+                        gameNum.transaction(function (currentNum) {
+                            console.log(currentNum);
+                            if (currentNum > 10) {
+                                return 1;
+                            }
+                            return currentNum + 1;
+                        });
+                    }
+                    console.log(gameNum);
+                    myEmail = '';
+                    if (player)
+                        player.remove();
+                    setTimeout(function () {
+                        location.href = "snake_royal_rumble.html";
+                    }, 1000);
+                    StartGameRef.set(null);
+                    AskPlayerRef.set(null);
+                }
+            });
+
+            PlayersRef.on('child_added', function (snapshot) {
+                console.log(snapshot.val());
+                console.log(player);
+                var howMany = document.getElementById("players_list").options.length;
+                for (var i = 0; i < howMany; i++) {
+                    if (document.getElementById("players_list").options[i].value === snapshot.val().email) {
+                        return;
+                    }
+                }
+                var opt = document.createElement("option");
+                opt.text = snapshot.val().email;
+                opt.value = snapshot.val().email;
+                document.getElementById("players_list").options.add(opt);
+            });
+
+            PlayersRef.on('child_removed', function (snapshot) {
+                console.log(snapshot.val());
+                var howMany = document.getElementById("players_list").options.length;
+                for (var i = 0; i < howMany; i++) {
+                    if (document.getElementById("players_list").options[i].value === snapshot.val().email) {
+                        document.getElementById("players_list").options.remove(i);
+                    }
+                    howMany = document.getElementById("players_list").options.length;
+                }
+                
+            });
+
+            PlayersWinsRef.on('value', function (snapshot) {
+                if (snapshot.val()) {
+                    removeTable($("#form"));
+                    var data = [["Pos", "Player", "Wins"]]; //headers
+                    for (var i = 0; i < snapshot.val().length; i++) {
+                        data.push([i + 1, snapshot.val()[i].email, snapshot.val()[i].wins]);
+                    }
+                    makeTable($("#form"), data);
+                }
+                else {
+                    console.log("no players");
+                }
+            });
+
+            var player;
+            var myEmail;
+
+            firebase.auth().onAuthStateChanged(function (user) {
+                if (user) {
+                    var displayName = user.displayName;
+                    var email = user.email;
+                    var emailVerified = user.emailVerified;
+                    var photoURL = user.photoURL;
+                    var isAnonymous = user.isAnonymous;
+                    var uid = user.uid;
+                    var providerData = user.providerData;
+                    var identifier = localStorage['identifier'] || new Date().getTime().toString();
+                    localStorage['identifier'] = identifier;
+                    console.log(identifier);
+                    PlayersWinsRef.transaction(function (playersList) {
+                        if (playersList) {
+                            for (var i = 0; i < playersList.length; i++) {
+                                if (playersList[i].email === user.email) {
+                                    console.log("player already exist");
+                                    playersList[i].identifier = identifier;
+                                    return playersList;
+                                }
+                            }
+                            console.log("new player, adding to list");
+                            playersList.push({ email: user.email, wins: 0, identifier: identifier });
+                            return playersList;
+                        }
+                        else {
+                            console.log("first player, creating new list");
+                            playersList = [];
+                            playersList.push({ email: user.email, wins: 0, identifier: identifier });
+                            return playersList;
+                        }
+                    });
+                    $('#input').hide();
+                    $('#input2').hide();
+                    $('#input3').hide();
+                    $('#login').hide();
+                    $('#signOut').show();
+                    $('#startGame').show();
+                    $('#players_list').show();
+                    $("#tableButton").show(); 
+                    $('#player_name').text('Hello ' + user.email);
+                    $('#players_list').append($('<tr></tr>').append($('<td></td>').text(user.email)));
+                    localStorage['user'] = user;
+                    console.log(PlayersRef);
+                    player = PlayersRef.push();
+                    console.log(user);
+                    console.log(player);
+                    myEmail = user.email;
+                    player.set({
+                        email: user.email,
+                        uid: user.uid
+                    });
+                    console.log(player);
+                } else {
+                    // User is signed out.
+                    console.log(player);
+                    myEmail = '';
+                    if(player)
+                        player.remove();
+                    console.log(player);   
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

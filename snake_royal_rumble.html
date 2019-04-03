@@ -1,0 +1,442 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>Snake Royal Rumble</title>
+    <style>
+        canvas{
+            display: block;
+            position: absolute;
+            border: 2px solid #000000;
+            margin: auto;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1 style="margin-top:40px">
+            <font color="blue">
+                <center> Let Get Ready To Rumble!!! </center>
+            </font>
+        </h1>
+    </div>
+    <script src="js/json3.min.js"></script>
+    <script src="js/jquery-1.10.1.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.8.3/firebase.js"></script>
+    <script>
+        // Initialize Firebase
+        var config = {
+            apiKey: "AIzaSyCjrWPFmgPteiXQ4hcGy2VgJYVnJLbeu20",
+            authDomain: "snake-royal-runble.firebaseapp.com",
+            databaseURL: "https://snake-royal-runble.firebaseio.com",
+            projectId: "snake-royal-runble",
+            storageBucket: "snake-royal-runble.appspot.com",
+            messagingSenderId: "430018821824"
+        };
+        firebase.initializeApp(config);
+
+        var identifier = localStorage['identifier'] || new Date().getTime().toString();
+        localStorage['identifier'] = identifier;
+        console.log(identifier);
+        var dbGameObj;
+        var myGameStatus = "not clear";
+
+        var COLS = 26, ROWS = 26;
+        var EMPTY = 0, SNAKE = 1, SNAKE2 = 2, FRUIT = 3, SNAKE_HEAD = 4, SNAKE2_HEAD = 5;
+        var LEFT = 0, UP = 1, RIGHT = 2, DOWN = 3;
+        var KEY_LEFT = 37, KEY_UP = 38, KEY_RIGHT = 39, KEY_DOWN = 40;
+        var snake;
+        var snake2;
+        var canvas, ctx, keystate, frames;
+        let foodImg = new Image();
+        let ground = new Image();
+        let snake_head_L = new Image();
+        let snake_head_R = new Image();
+        let snake_head_R_G = new Image();
+        let snake_head_U = new Image();
+        let snake_head_D = new Image();
+        ground.src = "images/ground2.png";
+        foodImg.src = "images/food.png";
+        snake_head_L.src = "images/Snake_head_left.png"
+        snake_head_R.src = "images/Snake_head_right.png"
+        snake_head_R_G.src = "images/Snake_head_right_g.png"
+        snake_head_U.src = "images/Snake_head_up.png"
+        snake_head_D.src = "images/Snake_head_down.png"
+
+        var grid = {
+            width: null,
+            height: null,
+            _grid: null,
+
+            init: function (d, c, r) {
+                this.width = c;
+                this.height = r;
+
+                this._grid = [];
+                for (var x = 0; x < c; x++) {
+                    this._grid.push([])
+                    for (var y = 0; y < r; y++) {
+                        this._grid[x].push(d);
+                    }
+                }
+            },
+
+            set: function (val, x, y) {
+                this._grid[x][y] = val;
+            },
+
+            get: function (x, y) {
+                return this._grid[x][y];
+            },
+
+            setGrid: function (grid) {
+                for (var x = 0; x < this.width; x++) {
+                    for (var y = 0; y < this.height; y++) {
+                        this._grid[x][y] = grid[x][y];
+                    }
+                }
+            },
+
+            getGrid: function () {
+                return this._grid;
+            },
+
+            snakeCollision: function (x, y) {
+                return this._grid[x][y] !== EMPTY || this._grid[x][y] !== FRUIT;
+            }
+        }
+
+        class Snake {
+            constructor(d, x, y) {
+                this.direction = d;
+                this._queue = [];
+                this.insert(x, y);
+            }
+            insert(x, y) {
+                this._queue.unshift({ x: x, y: y });
+                this.head = this._queue[0];
+            }
+
+            remove() {
+                return this._queue.pop();
+            }
+
+            is_collided(nx, ny) {
+                return 0 > nx || nx > grid.width - 1 ||
+                    0 > ny || ny > grid.height - 1 ||
+                    grid.get(nx, ny) === SNAKE ||
+                    grid.get(nx, ny) === SNAKE2;
+            }
+        }
+
+        function setFood() {
+            var empty_spots = [];
+            var aud = new Audio('sounds/eat.wav');
+            aud.play();
+            for (var x = 0; x < grid.width; x++) {
+                for (var y = 0; y < grid.height; y++) {
+                    if (grid.get(x, y) === EMPTY)
+                        empty_spots.push({ x: x, y: y });
+                }
+            }
+            var randpos = empty_spots[Math.floor(Math.random() * empty_spots.length)];
+            grid.set(FRUIT, randpos.x, randpos.y);
+        }
+
+        var init = function () {
+            canvas = document.createElement("canvas");
+            canvas.width = COLS * 20;
+            canvas.height = ROWS * 20;
+            ctx = canvas.getContext("2d");
+            document.body.appendChild(canvas);
+            ctx.font = "12px Helvetica";
+            frames = 0;
+            keystate = {};
+            grid.init(EMPTY, COLS, ROWS);
+            var snake_spot = { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2) };
+            snake = new Snake(RIGHT, snake_spot.x - 10, snake_spot.y);
+            snake2 = new Snake(RIGHT, snake_spot.x - 10, snake_spot.y + 10);
+            console.log("init");
+            grid.set(SNAKE_HEAD, snake.head.x, snake.head.y);
+            grid.set(SNAKE2_HEAD, snake2.head.x, snake2.head.y);
+            setFood();
+        }
+
+        $(document).ready(init);
+
+        var gameRef;
+
+        var snakeRef;
+        var mapRef;
+        var endRef;
+        var gameRunning = false;
+        var gameFinished = false;
+        var playerWinList = firebase.database().ref('playersWins');
+        var gameNum = firebase.database().ref('gameNum');
+
+        playerWinList.on('value', function (snapshot) {
+            if (snapshot.val()) console.log(snapshot.val());
+        });
+
+        gameNum.on('value', function (snapshot) {
+            console.log(snapshot.val());
+            if (snapshot.val()) {
+
+                document.addEventListener("keydown", function (event) {
+                    snakeRef.set({
+                        player: identifier,
+                        movement: event.keyCode
+                    });
+                });
+
+                document.addEventListener("keyup", function (event) {
+                    snakeRef.set(null);
+                });
+
+                var loop = function () {
+                    if (gameFinished) return;
+                    update();
+                    window.requestAnimationFrame(loop, canvas);
+                }
+
+                var update = function () {
+                    frames++;
+
+                    if (frames % 15 === 0) {
+                        var ny = snake.head.y;
+                        var nx = snake.head.x;
+                        var ny2 = snake2.head.y;
+                        var nx2 = snake2.head.x;
+
+                        switch (snake.direction) {
+                            case LEFT: nx--; break;
+                            case RIGHT: nx++; break;
+                            case UP: ny--; break;
+                            case DOWN: ny++; break;
+                        }
+
+                        switch (snake2.direction) {
+                            case LEFT: nx2--; break;
+                            case RIGHT: nx2++; break;
+                            case UP: ny2--; break;
+                            case DOWN: ny2++; break;
+                        }
+
+                        if (((snake.is_collided(nx, ny) && snake2.is_collided(nx2, ny2)) || (nx === nx2 && ny === ny2)) &&
+                            dbGameObj && dbGameObj.player1 == identifier) {
+                            endRef.set('Game OVER, it is a tie');
+                            return;
+                        }
+                        if (snake.is_collided(nx, ny) && dbGameObj && dbGameObj.player1 == identifier) {
+                            playerWinList.transaction(function (playersList) {
+                                console.log(playersList);
+                                for (var i = 0; i < playersList.length; i++) {
+                                    if (playersList[i].identifier === dbGameObj.player2 && !gameFinished) {
+                                        console.log(playersList[i].email);
+                                        gameFinished = true;
+                                        playersList[i].wins = playersList[i].wins + 1;
+                                        while (i !== 0 && playersList[i].wins > playersList[i - 1].wins) {
+                                            var temp = playersList[i - 1];
+                                            playersList[i - 1] = playersList[i];
+                                            playersList[i] = temp;
+                                        }
+                                        return playersList;
+                                    }
+                                }
+                            });
+                            endRef.set('Game OVER, blue player lost');
+                            return;
+                        }
+                        if (snake2.is_collided(nx2, ny2) && dbGameObj && dbGameObj.player1 == identifier) {
+                            playerWinList.transaction(function (playersList) {
+                                console.log(playersList);
+                                for (var i = 0; i < playersList.length; i++) {
+                                    if (playersList[i].identifier === dbGameObj.player1 && !gameFinished) {
+                                        console.log(playersList[i].email);
+                                        gameFinished = true;
+                                        playersList[i].wins = playersList[i].wins + 1;
+                                        while (i !== 0 && playersList[i].wins > playersList[i - 1].wins) {
+                                            var temp = playersList[i - 1];
+                                            playersList[i - 1] = playersList[i];
+                                            playersList[i] = temp;
+                                        }
+                                        return playersList;
+                                    }
+                                }
+                            });
+                            endRef.set('Game OVER, green player lost');
+                            return;
+                        }
+
+                        var snake_next_move;
+                        if (grid.get(nx, ny) === FRUIT) {
+                            snake_next_move = { x: nx, y: ny };
+                            setFood();
+                        } else {
+                            snake_next_move = snake.remove();
+                            grid.set(EMPTY, snake_next_move.x, snake_next_move.y);
+                            snake_next_move.x = nx;
+                            snake_next_move.y = ny;
+                        }
+                        var snake_next_move2;
+                        if (grid.get(nx2, ny2) === FRUIT) {
+                            snake_next_move2 = { x: nx2, y: ny2 };
+                            setFood();
+                        } else {
+                            snake_next_move2 = snake2.remove();
+                            grid.set(EMPTY, snake_next_move2.x, snake_next_move2.y);
+                            snake_next_move2.x = nx2;
+                            snake_next_move2.y = ny2;
+                        }
+                        grid.set(SNAKE, snake.head.x, snake.head.y);
+                        grid.set(SNAKE_HEAD, snake_next_move.x, snake_next_move.y);
+                        snake.insert(snake_next_move.x, snake_next_move.y);
+                        grid.set(SNAKE2, snake2.head.x, snake2.head.y);
+                        grid.set(SNAKE2_HEAD, snake_next_move2.x, snake_next_move2.y);
+                        snake2.insert(snake_next_move2.x, snake_next_move2.y);
+                        if (dbGameObj && dbGameObj.player1 == identifier) {
+                            mapRef.set(grid.getGrid());
+                        }
+                    }
+                }
+
+                var draw = function () {
+                    var tw = canvas.width / grid.width;
+                    var th = canvas.height / grid.height;
+                    ctx.drawImage(ground, -30, -60, 1000, 1000);
+                    for (var x = 0; x < grid.width; x++) {
+                        for (var y = 0; y < grid.height; y++) {
+                            switch (grid.get(x, y)) {
+                                case EMPTY:
+                                    //ctx.fillStyle = "#fff";
+                                    //ctx.fillRect(x * tw, y * th, tw, th);
+                                    break;
+                                case SNAKE:
+                                    ctx.fillStyle = "#05f";
+                                    ctx.fillRect(x * tw, y * th, tw, th);
+                                    break;
+                                case SNAKE2:
+                                    ctx.fillStyle = "#0f0";
+                                    ctx.fillRect(x * tw, y * th, tw, th);
+                                    break;
+                                case FRUIT:
+                                    ctx.drawImage(foodImg, x * tw, y * th, tw, th);
+                                    break;
+                                case SNAKE_HEAD:
+                                    switch (snake.direction) {
+                                        case LEFT: ctx.drawImage(snake_head_L, x * tw, y * th, tw, th); break;
+                                        case RIGHT: ctx.drawImage(snake_head_R, x * tw, y * th, tw, th); break;
+                                        case UP: ctx.drawImage(snake_head_U, x * tw, y * th, tw, th); break;
+                                        case DOWN: ctx.drawImage(snake_head_D, x * tw, y * th, tw, th); break;
+                                    }
+                                    break;
+                                case SNAKE2_HEAD:
+                                    switch (snake2.direction) {
+                                        case LEFT: ctx.drawImage(snake_head_L, x * tw, y * th, tw, th); break;
+                                        case RIGHT: ctx.drawImage(snake_head_R, x * tw, y * th, tw, th); break;
+                                        case UP: ctx.drawImage(snake_head_U, x * tw, y * th, tw, th); break;
+                                        case DOWN: ctx.drawImage(snake_head_D, x * tw, y * th, tw, th); break;
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+                    ctx.fillStyle = "#000";
+                    if (dbGameObj.player1 === identifier) {
+                        myColor = "blue";
+                    }
+                    else {
+                        myColor = "green";
+                    }
+                    ctx.fillText("my color: " + myColor, 10, canvas.height - 10);
+                }
+
+                gameRef = firebase.database().ref().child('game' + snapshot.val());
+                var snakeRef = gameRef.child('snake');
+                var mapRef = gameRef.child('map');
+                var endRef = gameRef.child('game_over');
+                gameRef.set(null);
+                endRef.set(null);
+                console.log(gameRef);
+
+                gameRef.on('value', function (snapshot) {
+                    if (snapshot.val() == null) {
+                        gameRef.set({
+                            player1: identifier,
+                            player2: "",
+                            status: "pending",
+                            endGame: "",
+                            counter: 0
+                        });
+                    } else {
+                        dbGameObj = snapshot.val();
+                        if (dbGameObj.player1 == identifier) {
+                            myGameStatus = "playing";
+                        }
+                        else if (dbGameObj.player2 == "") {
+                            dbGameObj.player2 = identifier;
+                            dbGameObj.status = "itson";
+                            gameRef.set(dbGameObj);
+                        } else if (dbGameObj.player2 == identifier) {
+                            myGameStatus = "playing";
+                        }
+                        else {
+                            myGameStatus = "spectating";
+                        }
+                        if (dbGameObj.status === "itson" && !gameRunning) {
+                            console.log(dbGameObj.status);
+                            gameRunning = true;
+                            loop();
+                        }
+                    }
+                });
+
+                snakeRef.on('value', function (snapshot) {
+                    var dbs = snapshot.val();
+
+                    if (dbs !== null && dbs.player === dbGameObj.player1) {
+                        if (dbs.movement === KEY_LEFT && snake.direction !== RIGHT) snake.direction = LEFT;
+                        if (dbs.movement === KEY_UP && snake.direction !== DOWN) snake.direction = UP;
+                        if (dbs.movement === KEY_RIGHT && snake.direction !== LEFT) snake.direction = RIGHT;
+                        if (dbs.movement === KEY_DOWN && snake.direction !== UP) snake.direction = DOWN;
+                    }
+
+                    if (dbs !== null && dbs.player === dbGameObj.player2) {
+                        if (dbs.movement === KEY_LEFT && snake2.direction !== RIGHT) snake2.direction = LEFT;
+                        if (dbs.movement === KEY_UP && snake2.direction !== DOWN) snake2.direction = UP;
+                        if (dbs.movement === KEY_RIGHT && snake2.direction !== LEFT) snake2.direction = RIGHT;
+                        if (dbs.movement === KEY_DOWN && snake2.direction !== UP) snake2.direction = DOWN;
+                    }
+                });
+
+                mapRef.on('value', function (snapshot) {
+                    if (snapshot.val()) {
+                        grid.setGrid(snapshot.val());
+                        draw();
+                        mapRef.set(null);
+                    }
+                });
+
+                endRef.on('value', function (snapshot) {
+                    if (snapshot.val()) {
+                        ctx.fillStyle = "#000";
+                        ctx.font = "30px Helvetica";
+                        ctx.fillText(snapshot.val(), canvas.width / 8, canvas.height / 2);
+                        return setTimeout(function () {
+                            gameRef.remove();
+                            window.location.href = "snake_login.html";
+                        }, 3000);
+                    }
+                });
+            }
+        });
+
+    </script>
+
+</body>
+</html>
