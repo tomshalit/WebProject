@@ -18,6 +18,13 @@
     </style>
 </head>
 <body>
+    <div class="container-fluid">
+        <h1 style="margin-top:40px">
+            <font color="blue">
+                <center> Let Get Ready To Rumble!!! </center>
+            </font>
+        </h1>
+    </div>
     <script src="js/json3.min.js"></script>
     <script src="js/jquery-1.10.1.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/5.8.3/firebase.js"></script>
@@ -40,12 +47,26 @@
         var myGameStatus = "not clear";
 
         var COLS = 26, ROWS = 26;
-        var EMPTY = 0, SNAKE = 1, SNAKE2 = 2, FRUIT = 3;
+        var EMPTY = 0, SNAKE = 1, SNAKE2 = 2, FRUIT = 3, SNAKE_HEAD = 4, SNAKE2_HEAD = 5;
         var LEFT = 0, UP = 1, RIGHT = 2, DOWN = 3;
         var KEY_LEFT = 37, KEY_UP = 38, KEY_RIGHT = 39, KEY_DOWN = 40;
         var snake;
         var snake2;
         var canvas, ctx, keystate, frames;
+        let foodImg = new Image();
+        let ground = new Image();
+        let snake_head_L = new Image();
+        let snake_head_R = new Image();
+        let snake_head_R_G = new Image();
+        let snake_head_U = new Image();
+        let snake_head_D = new Image();
+        ground.src = "images/ground2.png";
+        foodImg.src = "images/food.png";
+        snake_head_L.src = "images/Snake_head_left.png"
+        snake_head_R.src = "images/Snake_head_right.png"
+        snake_head_R_G.src = "images/Snake_head_right_g.png"
+        snake_head_U.src = "images/Snake_head_up.png"
+        snake_head_D.src = "images/Snake_head_down.png"
 
         var grid = {
             width: null,
@@ -98,7 +119,7 @@
             }
             insert(x, y) {
                 this._queue.unshift({ x: x, y: y });
-                this.last = this._queue[0];
+                this.head = this._queue[0];
             }
 
             remove() {
@@ -106,15 +127,17 @@
             }
 
             is_collided(nx, ny) {
-                return 0 > nx || nx > grid.width - 1  ||
-                       0 > ny || ny > grid.height - 1 ||
-                       grid.get(nx, ny) === SNAKE     ||
-                       grid.get(nx, ny) === SNAKE2;
+                return 0 > nx || nx > grid.width - 1 ||
+                    0 > ny || ny > grid.height - 1 ||
+                    grid.get(nx, ny) === SNAKE ||
+                    grid.get(nx, ny) === SNAKE2;
             }
         }
 
         function setFood() {
             var empty_spots = [];
+            var aud = new Audio('sounds/eat.wav');
+            aud.play();
             for (var x = 0; x < grid.width; x++) {
                 for (var y = 0; y < grid.height; y++) {
                     if (grid.get(x, y) === EMPTY)
@@ -139,15 +162,15 @@
             snake = new Snake(RIGHT, snake_spot.x - 10, snake_spot.y);
             snake2 = new Snake(RIGHT, snake_spot.x - 10, snake_spot.y + 10);
             console.log("init");
-            grid.set(SNAKE, snake.last.x, snake.last.y);
-            grid.set(SNAKE2, snake2.last.x, snake2.last.y);
+            grid.set(SNAKE_HEAD, snake.head.x, snake.head.y);
+            grid.set(SNAKE2_HEAD, snake2.head.x, snake2.head.y);
             setFood();
         }
 
         $(document).ready(init);
 
         var gameRef;
-        
+
         var snakeRef;
         var mapRef;
         var endRef;
@@ -185,27 +208,27 @@
                     frames++;
 
                     if (frames % 15 === 0) {
-                        var ny = snake.last.y;
-                        var nx = snake.last.x;
-                        var ny2 = snake2.last.y;
-                        var nx2 = snake2.last.x;
+                        var ny = snake.head.y;
+                        var nx = snake.head.x;
+                        var ny2 = snake2.head.y;
+                        var nx2 = snake2.head.x;
 
                         switch (snake.direction) {
-                            case LEFT:  nx--; break;
+                            case LEFT: nx--; break;
                             case RIGHT: nx++; break;
-                            case UP:    ny--; break;
-                            case DOWN:  ny++; break;
+                            case UP: ny--; break;
+                            case DOWN: ny++; break;
                         }
 
                         switch (snake2.direction) {
-                            case LEFT:  nx2--; break;
+                            case LEFT: nx2--; break;
                             case RIGHT: nx2++; break;
-                            case UP:    ny2--; break;
-                            case DOWN:  ny2++; break;
+                            case UP: ny2--; break;
+                            case DOWN: ny2++; break;
                         }
 
                         if (((snake.is_collided(nx, ny) && snake2.is_collided(nx2, ny2)) || (nx === nx2 && ny === ny2)) &&
-                              dbGameObj && dbGameObj.player1 == identifier) {
+                            dbGameObj && dbGameObj.player1 == identifier) {
                             endRef.set('Game OVER, it is a tie');
                             return;
                         }
@@ -270,9 +293,11 @@
                             snake_next_move2.x = nx2;
                             snake_next_move2.y = ny2;
                         }
-                        grid.set(SNAKE, snake_next_move.x, snake_next_move.y);
+                        grid.set(SNAKE, snake.head.x, snake.head.y);
+                        grid.set(SNAKE_HEAD, snake_next_move.x, snake_next_move.y);
                         snake.insert(snake_next_move.x, snake_next_move.y);
-                        grid.set(SNAKE2, snake_next_move2.x, snake_next_move2.y);
+                        grid.set(SNAKE2, snake2.head.x, snake2.head.y);
+                        grid.set(SNAKE2_HEAD, snake_next_move2.x, snake_next_move2.y);
                         snake2.insert(snake_next_move2.x, snake_next_move2.y);
                         if (dbGameObj && dbGameObj.player1 == identifier) {
                             mapRef.set(grid.getGrid());
@@ -283,24 +308,42 @@
                 var draw = function () {
                     var tw = canvas.width / grid.width;
                     var th = canvas.height / grid.height;
-
+                    ctx.drawImage(ground, -30, -60, 1000, 1000);
                     for (var x = 0; x < grid.width; x++) {
                         for (var y = 0; y < grid.height; y++) {
                             switch (grid.get(x, y)) {
                                 case EMPTY:
-                                    ctx.fillStyle = "#fff";
+                                    //ctx.fillStyle = "#fff";
+                                    //ctx.fillRect(x * tw, y * th, tw, th);
                                     break;
                                 case SNAKE:
-                                    ctx.fillStyle = "#0ff";
+                                    ctx.fillStyle = "#05f";
+                                    ctx.fillRect(x * tw, y * th, tw, th);
                                     break;
                                 case SNAKE2:
                                     ctx.fillStyle = "#0f0";
+                                    ctx.fillRect(x * tw, y * th, tw, th);
                                     break;
                                 case FRUIT:
-                                    ctx.fillStyle = "#f00";
+                                    ctx.drawImage(foodImg, x * tw, y * th, tw, th);
+                                    break;
+                                case SNAKE_HEAD:
+                                    switch (snake.direction) {
+                                        case LEFT: ctx.drawImage(snake_head_L, x * tw, y * th, tw, th); break;
+                                        case RIGHT: ctx.drawImage(snake_head_R, x * tw, y * th, tw, th); break;
+                                        case UP: ctx.drawImage(snake_head_U, x * tw, y * th, tw, th); break;
+                                        case DOWN: ctx.drawImage(snake_head_D, x * tw, y * th, tw, th); break;
+                                    }
+                                    break;
+                                case SNAKE2_HEAD:
+                                    switch (snake2.direction) {
+                                        case LEFT: ctx.drawImage(snake_head_L, x * tw, y * th, tw, th); break;
+                                        case RIGHT: ctx.drawImage(snake_head_R, x * tw, y * th, tw, th); break;
+                                        case UP: ctx.drawImage(snake_head_U, x * tw, y * th, tw, th); break;
+                                        case DOWN: ctx.drawImage(snake_head_D, x * tw, y * th, tw, th); break;
+                                    }
                                     break;
                             }
-                            ctx.fillRect(x * tw, y * th, tw, th);
                         }
                     }
                     ctx.fillStyle = "#000";
@@ -392,8 +435,8 @@
                 });
             }
         });
-        
+
     </script>
-    
+
 </body>
 </html>
